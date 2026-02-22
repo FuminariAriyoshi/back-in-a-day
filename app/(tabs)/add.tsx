@@ -1,9 +1,11 @@
+import { AIChatInput } from '@/components/ui/ai-chat-input';
+import { transcribeAudio } from '@/lib/openai';
 import { Ionicons } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Pressable,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -21,6 +23,9 @@ export default function AddScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [selectedListener, setSelectedListener] = useState('maple');
+  const [recording, setRecording] = useState(false);
+  const recordingRef = useRef<Audio.Recording | null>(null);
+
   const currentDate = new Date();
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const dateStr = `${monthNames[currentDate.getMonth()]} ${currentDate.getDate()}`;
@@ -28,13 +33,85 @@ export default function AddScreen() {
 
   const selectedListenerData = LISTENERS.find((l) => l.id === selectedListener) || LISTENERS[1];
 
+  const startRecording = useCallback(async () => {
+    try {
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+      const { recording: rec } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = rec;
+      setRecording(true);
+    } catch (e) {
+      console.warn('Failed to start recording', e);
+    }
+  }, []);
+
+  const stopRecordingAndTranscribe = useCallback(async (): Promise<string> => {
+    const rec = recordingRef.current;
+    if (!rec) {
+      setRecording(false);
+      return '';
+    }
+    setRecording(false);
+    recordingRef.current = null;
+    try {
+      await rec.stopAndUnloadAsync();
+      const uri = rec.getURI();
+      if (uri) {
+        const text = await transcribeAudio(uri);
+        return text || '';
+      }
+    } catch (e) {
+      console.warn('Transcribe failed', e);
+    }
+    return '';
+  }, []);
+
+  const handleMicStop = useCallback(async () => {
+    const transcribedText = await stopRecordingAndTranscribe();
+    if (transcribedText.trim()) {
+      router.push({
+        pathname: '/chat',
+        params: {
+          listenerId: selectedListener,
+          initialText: transcribedText.trim(),
+        },
+      });
+    }
+  }, [stopRecordingAndTranscribe, selectedListener, router]);
+
+  const handleSend = useCallback((text: string) => {
+    router.push({
+      pathname: '/chat',
+      params: {
+        listenerId: selectedListener,
+        initialText: text,
+      },
+    });
+  }, [selectedListener, router]);
+
+  useEffect(() => {
+    return () => {
+      if (recordingRef.current) {
+        recordingRef.current.stopAndUnloadAsync().catch(() => { });
+      }
+    };
+  }, []);
+
   return (
     <View className="screen-add">
       <ScrollView
         className="scroll-add"
         contentContainerStyle={{
           paddingTop: insets.top + 8,
-          paddingBottom: insets.bottom + 100,
+          paddingBottom: insets.bottom + 160,
           paddingHorizontal: 20,
           alignItems: 'center',
         }}
@@ -90,24 +167,23 @@ export default function AddScreen() {
         <Text className="prompt-text-add">Start to talk!</Text>
       </ScrollView>
 
-      <Pressable
-        className="input-bar-add"
-        style={{ bottom: insets.bottom + 10 }}
-        onPress={() => router.push({ pathname: '/chat', params: { listenerId: selectedListener } })}
+      {/* AI Chat Input Bar */}
+      <View
+        style={{
+          position: 'absolute',
+          left: 16,
+          right: 16,
+          bottom: insets.bottom + 10,
+        }}
       >
-        <View
-          className="input-bar-avatar-add"
-          style={{ backgroundColor: selectedListenerData.color }}
-        >
-          <Ionicons name={selectedListenerData.icon as any} size={24} color="#fff" />
-        </View>
-        <Text className="input-bar-placeholder-add">
-          Start to talk!
-        </Text>
-        <View className="input-bar-send-add">
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </View>
-      </Pressable>
+        <AIChatInput
+          onSend={handleSend}
+          onMicStart={startRecording}
+          onMicStop={handleMicStop}
+          isRecording={recording}
+          listenerColor={selectedListenerData.color}
+        />
+      </View>
     </View>
   );
 }

@@ -39,9 +39,10 @@ function formatTime(date: Date): string {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ listenerId?: string; date?: string; existingMessages?: string }>();
+  const params = useLocalSearchParams<{ listenerId?: string; date?: string; existingMessages?: string; initialText?: string }>();
   const listenerId = (params.listenerId as string) || 'maple';
   const dateParam = params.date as string | undefined;  // 編集時は既存の日付
+  const initialText = params.initialText as string | undefined;
   const isEditMode = !!dateParam;
 
   // 既存メッセージがあれば引き継ぐ（編集モード）
@@ -195,6 +196,12 @@ Journal structure guidance — when the user shares their day, structure your su
       console.warn('Transcribe failed', e);
     }
   }, []);
+
+  useEffect(() => {
+    if (initialText && messages.length === 0) {
+      sendMessage(initialText);
+    }
+  }, [initialText, messages.length, sendMessage]);
 
   useEffect(() => {
     return () => {
