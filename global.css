@@ -80,10 +80,10 @@
     @apply text-lg text-neutral-500 font-medium;
   }
   .empty-placeholder-home {
-    @apply mb-8;
+    @apply items-center justify-center mb-10;
   }
   .empty-placeholder-inner-home {
-    @apply w-[180px] h-[180px] rounded-full bg-neutral-100;
+    @apply w-[200px] h-[200px] rounded-[100px] items-center justify-center;
   }
   .empty-listener-section-home {
     @apply items-center mb-6 w-full;

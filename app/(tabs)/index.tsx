@@ -155,105 +155,119 @@ export default function HomeScreen() {
           </View>
         ) : hasJournalForSelected && selectedEntry ? (
           /* 選択した日にジャーナルがある場合: カード表示 */
-          <View
-            className="journal-card-home"
-            style={{ backgroundColor: selectedEntry.mood_color || '#fff' }}
-          >
-            <Text
-              className="card-title-home"
-              style={{ color: '#000', opacity: 0.6 }}
-            >
-              {selectedEntry.text.toUpperCase()}
-            </Text>
-            <View className="feather-icon-home">
-              <MaterialIcons name="edit" size={40} color="#1a1a1a" />
+          <View className="items-center">
+            {/* ジャーナル時のサークル表示 */}
+            <View className="empty-placeholder-home">
+              <LinearGradient
+                colors={[selectedEntry.mood_color || '#E0E0E0', '#F5F5F5']}
+                style={{
+                  width: 200,
+                  height: 200,
+                  borderRadius: 100,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <MaterialIcons name="auto-awesome" size={60} color="#1a1a1a" style={{ opacity: 0.15 }} />
+              </LinearGradient>
             </View>
 
-            {/* 要約 */}
-            <Text className="journal-text-home" style={{ color: '#1a1a1a', fontWeight: 'bold', fontSize: 20 }}>
-              {selectedEntry.summary || selectedEntry.text}
-            </Text>
-
-            {/* 今日やったこと */}
-            {selectedEntry.today_tasks && selectedEntry.today_tasks.length > 0 && (
-              <View style={{ marginTop: 20, padding: 16, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 12 }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', marginBottom: 10, opacity: 0.45, letterSpacing: 1 }}>TODAY'S LOG</Text>
-                {selectedEntry.today_tasks.map((task: string, idx: number) => (
-                  <View key={idx} style={{ flexDirection: 'row', marginBottom: 6, gap: 8 }}>
-                    <Text style={{ fontSize: 14, color: '#555', lineHeight: 20 }}>・</Text>
-                    <Text style={{ fontSize: 14, color: '#333', lineHeight: 20, flex: 1 }}>{task}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* 明日やること */}
-            {selectedEntry.tomorrow_tasks && selectedEntry.tomorrow_tasks.length > 0 && (
-              <View style={{ marginTop: 12, padding: 16, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' }}>
-                <Text style={{ fontSize: 11, fontWeight: '800', marginBottom: 10, opacity: 0.45, letterSpacing: 1 }}>TOMORROW'S PLAN</Text>
-                {selectedEntry.tomorrow_tasks.map((task: string, idx: number) => (
-                  <View key={idx} style={{ flexDirection: 'row', marginBottom: 6, gap: 8, alignItems: 'flex-start' }}>
-                    <Text style={{ fontSize: 14, color: '#1a1a1a', fontWeight: '700' }}>{idx + 1}.</Text>
-                    <Text style={{ fontSize: 14, color: '#333', lineHeight: 20, flex: 1 }}>{task}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-
-            <View className="listener-row-home" style={{ marginTop: 20 }}>
-              <View className="listener-avatar-home" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
-                <Ionicons name="person" size={20} color="#fff" />
-              </View>
-              <Text className="listener-label-home" style={{ color: '#1a1a1a' }}>
-                Listener: {selectedEntry.listener_name}
+            <View
+              className="journal-card-home w-full"
+              style={{ backgroundColor: '#fff' }}
+            >
+              <Text
+                className="card-title-home"
+                style={{ color: '#000', opacity: 0.4 }}
+              >
+                {selectedEntry.text.toUpperCase()}
               </Text>
-            </View>
 
-            {/* 会話ログ */}
-            {selectedEntry.messages && selectedEntry.messages.length > 0 && (
-              <View style={{ marginTop: 24, padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' }}>
-                <Text style={{ fontSize: 12, fontWeight: '700', marginBottom: 12, opacity: 0.5 }}>CONVERSATION LOG</Text>
-                {selectedEntry.messages.slice(0, 5).map((m: any, idx: number) => (
-                  <View key={idx} style={{ marginBottom: 8 }}>
-                    <Text style={{ fontSize: 13, color: '#444' }}>
-                      <Text style={{ fontWeight: '700' }}>{m.role === 'user' ? 'Me' : selectedEntry.listener_name}: </Text>
-                      {m.content}
-                    </Text>
-                  </View>
-                ))}
-                {selectedEntry.messages.length > 5 && (
-                  <Text style={{ fontSize: 12, opacity: 0.5, fontStyle: 'italic' }}>...and {(selectedEntry.messages.length - 5)} more messages</Text>
-                )}
+              {/* 要約 */}
+              <Text className="journal-text-home" style={{ color: '#1a1a1a', fontWeight: 'bold', fontSize: 22, marginTop: 10 }}>
+                {selectedEntry.summary || selectedEntry.text}
+              </Text>
+
+              {/* 今日やったこと */}
+              {selectedEntry.today_tasks && selectedEntry.today_tasks.length > 0 && (
+                <View style={{ marginTop: 20, padding: 18, backgroundColor: 'rgba(0,0,0,0.03)', borderRadius: 16 }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', marginBottom: 12, opacity: 0.35, letterSpacing: 1 }}>TODAY'S LOG</Text>
+                  {selectedEntry.today_tasks.map((task: string, idx: number) => (
+                    <View key={idx} style={{ flexDirection: 'row', marginBottom: 8, gap: 10 }}>
+                      <Text style={{ fontSize: 14, color: '#666' }}>•</Text>
+                      <Text style={{ fontSize: 14, color: '#333', lineHeight: 22, flex: 1 }}>{task}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* 明日やること */}
+              {selectedEntry.tomorrow_tasks && selectedEntry.tomorrow_tasks.length > 0 && (
+                <View style={{ marginTop: 12, padding: 18, backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: 16, borderWidth: 1, borderColor: 'rgba(0,0,0,0.05)' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '800', marginBottom: 12, opacity: 0.35, letterSpacing: 1 }}>TOMORROW'S PLAN</Text>
+                  {selectedEntry.tomorrow_tasks.map((task: string, idx: number) => (
+                    <View key={idx} style={{ flexDirection: 'row', marginBottom: 8, gap: 10, alignItems: 'flex-start' }}>
+                      <Text style={{ fontSize: 14, color: '#1a1a1a', fontWeight: '700' }}>{idx + 1}.</Text>
+                      <Text style={{ fontSize: 14, color: '#333', lineHeight: 22, flex: 1 }}>{task}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View className="listener-row-home" style={{ marginTop: 24 }}>
+                <View className="listener-avatar-home" style={{ backgroundColor: 'rgba(0,0,0,0.08)', width: 32, height: 32 }}>
+                  <Ionicons name="person" size={16} color="#666" />
+                </View>
+                <Text className="listener-label-home" style={{ color: '#666', fontSize: 13 }}>
+                  Listener: {selectedEntry.listener_name}
+                </Text>
               </View>
-            )}
 
-            {/* 編集ボタン */}
-            <TouchableOpacity
-              onPress={() => router.push({
-                pathname: '/chat',
-                params: {
-                  listenerId: selectedEntry.listener_id,
-                  date: selectedEntry.date,
-                  existingMessages: JSON.stringify(selectedEntry.messages ?? []),
-                }
-              })}
-              activeOpacity={0.8}
-              style={{
-                marginTop: 20,
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                paddingVertical: 12,
-                paddingHorizontal: 20,
-                backgroundColor: 'rgba(0,0,0,0.12)',
-                borderRadius: 14,
-              }}
-            >
-              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#1a1a1a" />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1a1a1a' }}>続きを話す / 編集</Text>
-            </TouchableOpacity>
+              {/* 会話ログ */}
+              {selectedEntry.messages && selectedEntry.messages.length > 0 && (
+                <View style={{ marginTop: 24, padding: 16, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)' }}>
+                  <Text style={{ fontSize: 11, fontWeight: '700', marginBottom: 14, opacity: 0.35, letterSpacing: 0.5 }}>CONVERSATION LOG</Text>
+                  {selectedEntry.messages.slice(0, 3).map((m: any, idx: number) => (
+                    <View key={idx} style={{ marginBottom: 10 }}>
+                      <Text style={{ fontSize: 13, color: '#666', lineHeight: 18 }}>
+                        <Text style={{ fontWeight: '700', color: '#444' }}>{m.role === 'user' ? 'Me' : selectedEntry.listener_name}: </Text>
+                        {m.content}
+                      </Text>
+                    </View>
+                  ))}
+                  {selectedEntry.messages.length > 3 && (
+                    <Text style={{ fontSize: 12, opacity: 0.4, fontStyle: 'italic', marginTop: 4 }}>+ {(selectedEntry.messages.length - 3)} messages</Text>
+                  )}
+                </View>
+              )}
+
+              {/* 編集ボタン */}
+              <TouchableOpacity
+                onPress={() => router.push({
+                  pathname: '/chat',
+                  params: {
+                    listenerId: selectedEntry.listener_id,
+                    date: selectedEntry.date,
+                    existingMessages: JSON.stringify(selectedEntry.messages ?? []),
+                  }
+                })}
+                activeOpacity={0.8}
+                style={{
+                  marginTop: 24,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 10,
+                  paddingVertical: 14,
+                  paddingHorizontal: 20,
+                  backgroundColor: 'rgba(0,0,0,0.04)',
+                  borderRadius: 18,
+                }}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#1a1a1a" />
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#1a1a1a' }}>続きを話す / 編集</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           /* ジャーナルがない場合 */
@@ -280,7 +294,7 @@ export default function HomeScreen() {
                   justifyContent: 'center',
                 }}
               >
-                <View className="empty-placeholder-inner-home" />
+                <Ionicons name="chatbubble-ellipses" size={60} color="#1a1a1a" style={{ opacity: 0.1 }} />
               </LinearGradient>
             </View>
 
