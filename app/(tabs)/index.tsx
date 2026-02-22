@@ -1,98 +1,345 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { useJournals } from '@/hooks/use-journals';
+import { Ionicons } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MOOD_COLORS = [
+  '#9B59B6',
+  '#E91E8C',
+  '#2196F3',
+  '#FBC02D',
+  '#26A69A',
+  '#1565C0',
+  '#BDBDBD',
+];
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+const LISTENERS = [
+  { id: 'rex', name: 'Rex', color: '#9B59B6', icon: 'person' as const },
+  { id: 'maple', name: 'Maple', color: '#3498DB', icon: 'person' as const },
+  { id: 'cove', name: 'Cove', color: '#16A085', icon: 'leaf' as const },
+];
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
+function getWeekEndingToday(): { date: Date; dayName: string; dayNum: number; monthName: string; isToday: boolean; dateKey: string }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const out: { date: Date; dayName: string; dayNum: number; monthName: string; isToday: boolean; dateKey: string }[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    out.push({
+      date: d,
+      dayName: DAY_NAMES[d.getDay()],
+      dayNum: d.getDate(),
+      monthName: MONTH_NAMES[d.getMonth()],
+      isToday: i === 0,
+      dateKey: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`,
+    });
+  }
+  return out;
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
+export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { signOut, user } = useAuth();
+  const { journalsByDate, loading: journalsLoading, fetchJournals } = useJournals();
+
+  // 画面に戻ってきたときにデータを再取得する
+  useFocusEffect(
+    useCallback(() => {
+      fetchJournals();
+    }, [fetchJournals])
+  );
+
+  const week = useMemo(() => getWeekEndingToday(), []);
+  const todayIndex = 6;
+  const [selectedDayIndex, setSelectedDayIndex] = useState(todayIndex);
+  const [selectedListener, setSelectedListener] = useState('maple');
+
+  const selectedDay = week[selectedDayIndex];
+  const isSelectedToday = selectedDay?.isToday ?? false;
+
+  const hasJournalForSelected = selectedDay ? !!journalsByDate[selectedDay.dateKey] : false;
+  const selectedEntry = selectedDay ? journalsByDate[selectedDay.dateKey] : null;
+
+  const selectedListenerData = LISTENERS.find((l) => l.id === selectedListener) || LISTENERS[1];
+  const headerDateStr = week.length ? `${week[6].monthName} ${week[6].dayNum} ${week[6].date.getFullYear()}` : '';
+
+  const handleSignOut = () => {
+    Alert.alert('サインアウト', 'サインアウトしますか？', [
+      { text: 'キャンセル', style: 'cancel' },
+      { text: 'サインアウト', style: 'destructive', onPress: signOut },
+    ]);
+  };
+
+  return (
+    <View className="screen-home">
+      <ScrollView
+        className="scroll-home"
+        contentContainerStyle={{
+          paddingTop: insets.top + 12,
+          paddingBottom: insets.bottom + 100,
+          paddingHorizontal: 20,
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <View className="header-home">
+          <View className="header-left-home">
+            <Text className="title-home">
+              Daily Journal & History
+            </Text>
+            <Text className="date-home">
+              {headerDateStr}
+            </Text>
+          </View>
+          <TouchableOpacity
+            className="avatar-btn-home"
+            activeOpacity={0.7}
+            onPress={handleSignOut}
+          >
+            <Ionicons name="person-circle-outline" size={40} color="#666" />
+          </TouchableOpacity>
+        </View>
+
+        {/* 1週間・右端が今日 */}
+        <View className="week-row-home">
+          {week.map((day, index) => (
+            <TouchableOpacity
+              key={day.dateKey}
+              className={`day-cell-home ${selectedDayIndex === index ? 'day-cell-home--selected' : ''}`}
+              onPress={() => setSelectedDayIndex(index)}
+              activeOpacity={0.8}
+            >
+              <Text
+                className={`day-name-home ${selectedDayIndex === index ? 'day-name-home--selected' : ''}`}
+              >
+                {day.dayName}
+              </Text>
+              <Text
+                className={`day-num-home ${selectedDayIndex === index ? 'day-num-home--selected' : ''}`}
+              >
+                {day.dayNum}
+              </Text>
+              <View
+                className="mood-dot-home"
+                style={{
+                  backgroundColor: journalsByDate[day.dateKey] ? (journalsByDate[day.dateKey].mood_color || '#4CD964') : MOOD_COLORS[index],
+                  width: selectedDayIndex === index ? 12 : 8,
+                  height: selectedDayIndex === index ? 12 : 8,
+                  borderRadius: selectedDayIndex === index ? 6 : 4,
+                }}
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* ローディング中 */}
+        {journalsLoading ? (
+          <View style={{ flex: 1, alignItems: 'center', paddingTop: 60 }}>
+            <ActivityIndicator size="large" color="#888" />
+          </View>
+        ) : hasJournalForSelected && selectedEntry ? (
+          /* 選択した日にジャーナルがある場合: カード表示 */
+          <View
+            className="journal-card-home"
+            style={{ backgroundColor: selectedEntry.mood_color || '#fff' }}
+          >
+            <Text
+              className="card-title-home"
+              style={{ color: '#000', opacity: 0.6 }}
+            >
+              {selectedEntry.text.toUpperCase()}
+            </Text>
+            <View className="feather-icon-home">
+              <MaterialIcons name="edit" size={40} color="#1a1a1a" />
+            </View>
+
+            {/* 要約 */}
+            <Text className="journal-text-home" style={{ color: '#1a1a1a', fontWeight: 'bold', fontSize: 20 }}>
+              {selectedEntry.summary || selectedEntry.text}
+            </Text>
+
+            {/* 今日やったこと */}
+            {selectedEntry.today_tasks && selectedEntry.today_tasks.length > 0 && (
+              <View style={{ marginTop: 20, padding: 16, backgroundColor: 'rgba(0,0,0,0.06)', borderRadius: 12 }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', marginBottom: 10, opacity: 0.45, letterSpacing: 1 }}>TODAY'S LOG</Text>
+                {selectedEntry.today_tasks.map((task: string, idx: number) => (
+                  <View key={idx} style={{ flexDirection: 'row', marginBottom: 6, gap: 8 }}>
+                    <Text style={{ fontSize: 14, color: '#555', lineHeight: 20 }}>・</Text>
+                    <Text style={{ fontSize: 14, color: '#333', lineHeight: 20, flex: 1 }}>{task}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* 明日やること */}
+            {selectedEntry.tomorrow_tasks && selectedEntry.tomorrow_tasks.length > 0 && (
+              <View style={{ marginTop: 12, padding: 16, backgroundColor: 'rgba(0,0,0,0.04)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' }}>
+                <Text style={{ fontSize: 11, fontWeight: '800', marginBottom: 10, opacity: 0.45, letterSpacing: 1 }}>TOMORROW'S PLAN</Text>
+                {selectedEntry.tomorrow_tasks.map((task: string, idx: number) => (
+                  <View key={idx} style={{ flexDirection: 'row', marginBottom: 6, gap: 8, alignItems: 'flex-start' }}>
+                    <Text style={{ fontSize: 14, color: '#1a1a1a', fontWeight: '700' }}>{idx + 1}.</Text>
+                    <Text style={{ fontSize: 14, color: '#333', lineHeight: 20, flex: 1 }}>{task}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
+
+
+            <View className="listener-row-home" style={{ marginTop: 20 }}>
+              <View className="listener-avatar-home" style={{ backgroundColor: 'rgba(0,0,0,0.8)' }}>
+                <Ionicons name="person" size={20} color="#fff" />
+              </View>
+              <Text className="listener-label-home" style={{ color: '#1a1a1a' }}>
+                Listener: {selectedEntry.listener_name}
+              </Text>
+            </View>
+
+            {/* 会話ログ */}
+            {selectedEntry.messages && selectedEntry.messages.length > 0 && (
+              <View style={{ marginTop: 24, padding: 12, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.1)' }}>
+                <Text style={{ fontSize: 12, fontWeight: '700', marginBottom: 12, opacity: 0.5 }}>CONVERSATION LOG</Text>
+                {selectedEntry.messages.slice(0, 5).map((m: any, idx: number) => (
+                  <View key={idx} style={{ marginBottom: 8 }}>
+                    <Text style={{ fontSize: 13, color: '#444' }}>
+                      <Text style={{ fontWeight: '700' }}>{m.role === 'user' ? 'Me' : selectedEntry.listener_name}: </Text>
+                      {m.content}
+                    </Text>
+                  </View>
+                ))}
+                {selectedEntry.messages.length > 5 && (
+                  <Text style={{ fontSize: 12, opacity: 0.5, fontStyle: 'italic' }}>...and {(selectedEntry.messages.length - 5)} more messages</Text>
+                )}
+              </View>
+            )}
+
+            {/* 編集ボタン */}
+            <TouchableOpacity
+              onPress={() => router.push({
+                pathname: '/chat',
+                params: {
+                  listenerId: selectedEntry.listener_id,
+                  date: selectedEntry.date,
+                  existingMessages: JSON.stringify(selectedEntry.messages ?? []),
+                }
+              })}
+              activeOpacity={0.8}
+              style={{
+                marginTop: 20,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                paddingVertical: 12,
+                paddingHorizontal: 20,
+                backgroundColor: 'rgba(0,0,0,0.12)',
+                borderRadius: 14,
+              }}
+            >
+              <Ionicons name="chatbubble-ellipses-outline" size={18} color="#1a1a1a" />
+              <Text style={{ fontSize: 14, fontWeight: '700', color: '#1a1a1a' }}>続きを話す / 編集</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          /* ジャーナルがない場合 */
+          <>
+            <View className="empty-today-section-home">
+              <Text className="empty-today-text-home">
+                {isSelectedToday ? 'Today' : `${selectedDay?.dayName} ${selectedDay?.dayNum}`}
+              </Text>
+              <Text className="empty-fulldate-home">
+                {selectedDay
+                  ? `${selectedDay.monthName}${selectedDay.dayNum} ${selectedDay.date.getFullYear()}`
+                  : ''}
+              </Text>
+            </View>
+
+            <View className="empty-placeholder-home">
+              <LinearGradient
+                colors={['#E0E0E0', '#F5F5F5']}
+                style={{
+                  width: 200,
+                  height: 200,
+                  borderRadius: 100,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <View className="empty-placeholder-inner-home" />
+              </LinearGradient>
+            </View>
+
+            <View className="empty-listener-section-home">
+              <Text className="empty-listener-title-home">
+                Listener
+              </Text>
+              <View className="empty-listener-row-home">
+                {LISTENERS.map((listener) => (
+                  <TouchableOpacity
+                    key={listener.id}
+                    className={`empty-listener-item-home ${selectedListener === listener.id ? 'empty-listener-item-home--selected' : ''}`}
+                    onPress={() => setSelectedListener(listener.id)}
+                    activeOpacity={0.8}
+                  >
+                    <View
+                      className="empty-listener-avatar-home"
+                      style={{ backgroundColor: listener.color }}
+                    >
+                      <Ionicons name={listener.icon} size={32} color="#fff" />
+                    </View>
+                    <Text
+                      className={`empty-listener-name-home ${selectedListener === listener.id ? 'empty-listener-name-home--selected' : ''}`}
+                    >
+                      {listener.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            <Text className="empty-prompt-home">
+              Start to talk!
+            </Text>
+          </>
+        )}
+      </ScrollView>
+
+      {/* ジャーナルがないとき: タップでチャット画面へ */}
+      {!journalsLoading && !hasJournalForSelected && (
+        <Pressable
+          className="input-bar-home"
+          style={{ bottom: insets.bottom + 10 }}
+          onPress={() => router.push({ pathname: '/chat', params: { listenerId: selectedListener, date: selectedDay?.dateKey } })}
+        >
+          <View
+            className="input-bar-avatar-home"
+            style={{ backgroundColor: selectedListenerData.color }}
+          >
+            <Ionicons name={selectedListenerData.icon} size={24} color="#fff" />
+          </View>
+          <Text className="input-bar-placeholder-home">
+            Start to talk!
+          </Text>
+          <View className="input-bar-send-home">
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </View>
+        </Pressable>
+      )}
+    </View>
+  );
+}
