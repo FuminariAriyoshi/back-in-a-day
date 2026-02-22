@@ -194,6 +194,7 @@ export default function AuthScreen() {
                             autoCapitalize="none"
                             keyboardType="email-address"
                             autoCorrect={false}
+                            returnKeyType="next"
                         />
                     </View>
 
@@ -217,6 +218,8 @@ export default function AuthScreen() {
                             value={password}
                             onChangeText={setPassword}
                             secureTextEntry
+                            returnKeyType={isLogin ? "done" : "next"}
+                            onSubmitEditing={isLogin ? handleSubmit : undefined}
                         />
                     </View>
 
@@ -241,6 +244,8 @@ export default function AuthScreen() {
                                 value={confirmPassword}
                                 onChangeText={setConfirmPassword}
                                 secureTextEntry
+                                returnKeyType="done"
+                                onSubmitEditing={handleSubmit}
                             />
                         </View>
                     )}
