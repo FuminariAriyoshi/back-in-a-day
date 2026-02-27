@@ -1,5 +1,5 @@
 import { Mic, Paperclip, Send } from "lucide-react-native";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useRef } from "react";
 import {
     Platform,
     Pressable,
@@ -9,28 +9,32 @@ import {
 } from "react-native";
 
 interface AIChatInputProps {
+    value: string;
+    onChangeText: (text: string) => void;
     onSend?: (text: string) => void;
     onMicStart?: () => void;
     onMicStop?: () => void;
     isRecording?: boolean;
+    isTranscribing?: boolean;
     listenerColor?: string;
 }
 
 const AIChatInput = ({
+    value,
+    onChangeText,
     onSend,
     onMicStart,
     onMicStop,
     isRecording = false,
+    isTranscribing = false,
     listenerColor = "#6A3DE8",
 }: AIChatInputProps) => {
-    const [inputValue, setInputValue] = useState("");
     const inputRef = useRef<TextInput>(null);
 
     const handleSend = useCallback(() => {
-        if (!inputValue.trim()) return;
-        onSend?.(inputValue.trim());
-        setInputValue("");
-    }, [inputValue, onSend]);
+        if (!value.trim()) return;
+        onSend?.(value.trim());
+    }, [value, onSend]);
 
     const handleMicToggle = useCallback(() => {
         if (isRecording) {
@@ -46,21 +50,22 @@ const AIChatInput = ({
             <TextInput
                 ref={inputRef}
                 style={[styles.textInput, Platform.OS === 'web' && { outlineWidth: 0 } as any]}
-                value={inputValue}
-                onChangeText={setInputValue}
-                placeholder="Start to talk!"
+                value={isTranscribing ? "Thinking..." : value}
+                onChangeText={onChangeText}
+                placeholder={isTranscribing ? "Transcribing..." : "Start to talk!"}
                 placeholderTextColor="#9CA3AF"
                 multiline
                 textAlignVertical="top"
                 returnKeyType="default"
                 underlineColorAndroid="transparent"
                 selectionColor="#6A3DE8"
+                editable={!isTranscribing}
             />
 
             {/* Bottom action row */}
             <View style={styles.actionRow}>
                 {/* Attach button */}
-                <Pressable style={styles.iconBtn} hitSlop={8}>
+                <Pressable style={styles.iconBtn} hitSlop={8} disabled={isTranscribing}>
                     <Paperclip size={20} color="#888" />
                 </Pressable>
 
@@ -70,18 +75,20 @@ const AIChatInput = ({
                         style={[styles.iconBtn, isRecording && styles.micActiveBg]}
                         onPress={handleMicToggle}
                         hitSlop={8}
+                        disabled={isTranscribing}
                     >
-                        <Mic size={20} color={isRecording ? "#EF4444" : "#555"} />
+                        <Mic size={20} color={isRecording ? "#EF4444" : isTranscribing ? "#CCC" : "#555"} />
                     </Pressable>
 
                     {/* Send button */}
                     <Pressable
                         style={[
                             styles.sendBtn,
-                            { backgroundColor: inputValue.trim() ? listenerColor : "#18181B" },
+                            { backgroundColor: (value.trim() && !isTranscribing) ? listenerColor : "#18181B" },
                         ]}
                         onPress={handleSend}
                         hitSlop={8}
+                        disabled={!value.trim() || isTranscribing}
                     >
                         <Send size={18} color="#fff" />
                     </Pressable>

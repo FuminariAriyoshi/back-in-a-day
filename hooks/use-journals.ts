@@ -11,6 +11,7 @@ export type Journal = {
     today_tasks?: string[];
     tomorrow_tasks?: string[];
     mood_color?: string;
+    mood_score?: number; // 0-100
     messages?: any[];
     listener_id: string;
     listener_name: string;
@@ -35,7 +36,7 @@ export function useJournals() {
             .from('journals')
             .select('*')
             .eq('user_id', user.id)
-            .order('date', { ascending: false });
+            .order('created_at', { ascending: false }); // 作成順（新しい順）
 
         if (error) {
             setError(error.message);
@@ -49,19 +50,25 @@ export function useJournals() {
         fetchJournals();
     }, [fetchJournals]);
 
-    const upsertJournal = async (journal: JournalInsert) => {
+    const upsertJournal = async (journal: JournalInsert & { id?: string }) => {
         if (!user) return { error: '未認証です' };
+
+        // IDがあれば更新、なければ新規作成
+        const payload: any = {
+            ...journal,
+            user_id: user.id,
+            updated_at: new Date().toISOString(),
+        };
+
+        // 新規作成時（idがない時）にidプロパティがundefinedの状態で入るとエラーになる場合があるため
+        // 明示的にidがある時だけセットする
+        if (!journal.id) {
+            delete payload.id;
+        }
 
         const { error } = await supabase
             .from('journals')
-            .upsert(
-                {
-                    ...journal,
-                    user_id: user.id,
-                    updated_at: new Date().toISOString(),
-                },
-                { onConflict: 'user_id,date' }
-            );
+            .upsert(payload);
 
         if (error) return { error: error.message };
 
@@ -69,14 +76,14 @@ export function useJournals() {
         return { error: null };
     };
 
-    const deleteJournal = async (date: string) => {
+    const deleteJournal = async (id: string) => {
         if (!user) return { error: '未認証です' };
 
         const { error } = await supabase
             .from('journals')
             .delete()
             .eq('user_id', user.id)
-            .eq('date', date);
+            .eq('id', id);
 
         if (error) return { error: error.message };
 
@@ -84,9 +91,10 @@ export function useJournals() {
         return { error: null };
     };
 
-    // dateキーでのアクセスを簡単にするマップ
-    const journalsByDate = journals.reduce<Record<string, Journal>>((acc, j) => {
-        acc[j.date] = j;
+    // dateキーに対してジャーナルの「配列」をマッピングする
+    const journalsByDate = journals.reduce<Record<string, Journal[]>>((acc, j) => {
+        if (!acc[j.date]) acc[j.date] = [];
+        acc[j.date].push(j);
         return acc;
     }, {});
 

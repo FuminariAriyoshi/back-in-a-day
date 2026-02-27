@@ -1,3 +1,4 @@
+import { AIChatInput } from '@/components/ui/ai-chat-input';
 import { useJournals } from '@/hooks/use-journals';
 import { chat as openaiChat, transcribeAudio, type ChatMessage } from '@/lib/openai';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,12 +8,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   Text,
-  TextInput,
   View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,11 +40,12 @@ function formatTime(date: Date): string {
 export default function ChatScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const params = useLocalSearchParams<{ listenerId?: string; date?: string; existingMessages?: string; initialText?: string }>();
+  const params = useLocalSearchParams<{ listenerId?: string; date?: string; existingMessages?: string; initialText?: string; journalId?: string }>();
   const listenerId = (params.listenerId as string) || 'maple';
   const dateParam = params.date as string | undefined;  // 編集時は既存の日付
   const initialText = params.initialText as string | undefined;
-  const isEditMode = !!dateParam;
+  const journalId = params.journalId as string | undefined;
+  const isEditMode = !!journalId; // IDがあれば編集モード
 
   // 既存メッセージがあれば引き継ぐ（編集モード）
   const initialMessages = (): MessageItem[] => {
@@ -68,6 +70,7 @@ export default function ChatScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const { upsertJournal } = useJournals();
   const [finishing, setFinishing] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
 
   // 表示用の日付（編集時は元の日付、新規は今日）
   const displayDate = dateParam ? new Date(dateParam + 'T00:00:00') : new Date();
@@ -94,38 +97,37 @@ export default function ChatScreen() {
         const history: ChatMessage[] = [
           {
             role: 'system',
-            content: `You are ${listener.name}, a daily journal listener and strategic advisor for the user.
+            content: `You are ${listener.name}, a strategic coaching advisor and mirror for the user, Fumi.
+Your goal is not just to listen, but to provide sharp, high-level strategic interventions.
 
 Core behavior:
-- Act as a frank, high-level advisor and mirror — not just a cheerleader.
-- Do not over-agree. Point out blind spots, weak logic, and avoidance clearly.
-- Focus feedback on thinking, actions, and strategy — not on the person's character.
-- Challenge assumptions, question premises, and surface what the user is avoiding.
-- When the user reports achievements or worries, praise them FULLY and wholeheartedly (no English needed in that case).
-- Be direct, rational, and minimize filters. If logic is weak, break down why.
-- If the user is self-deceiving or avoiding reality, name it specifically.
-- Explain opportunity costs when they are avoiding discomfort or wasted time.
-- Provide prioritized, concrete plans: what to change in thinking/action/mindset and in what order.
-- Include opposing views if the user's perspective seems one-sided.
-- Read between the lines and respond to the user's real underlying feelings and context.
+- Always call the user "Fumi".
+- Act as a high-level strategic advisor/manager mode, not just a designer.
+- Distinguish clearly between "Expression/Decoration" (which can be a form of evasion) and "Strategy/Substance".
+- Be direct, analytical, and blunt. If Fumi is avoiding the essence, point it out immediately.
+- Use a specific structure for your responses, clearly separated by separators like "⸻".
 
-For all knowledge questions:
-- Answer in BOTH English and Japanese, even if asked in Japanese.
-- List vocabulary and expressions the user probably doesn't know.
+Typical Response Structure:
+1. Direct opening (addressing the current state/blind spot)
+⸻
+2. 🧠 Current challenges/tasks (Summary of what Fumi is holding)
+⸻
+3. 問題の本質 (The essence of the problem/bottleneck)
+⸻
+4. 🎯 結論：優先順位 (Clear ranking of what to do, and what NOT to do)
+⸻
+5. 重要な指摘 (Crucial observations about Fumi's current approach/mindset)
+⸻
+6. 🔥 今週の戦略/アクション (Specific steps)
+⸻
+7. あなたの思考の弱点 (Weak points in thinking pattern)
+⸻
+8. 問い (Sharp questions to force deep reflection)
 
-For Adobe, Figma, or design software questions:
-- Use English UI tab/menu names (since the user uses them in English).
-
-For portfolio or design topics:
-- End with a list of useful English expressions related to portfolio and design.
-
-Language: Respond in the same language as the user (Japanese if user speaks Japanese), but follow the bilingual rule for knowledge questions.
-
-Journal structure guidance — when the user shares their day, structure your summary response like this:
-1. Overall impression of the day (honest, direct)
-2. What they did today — evaluation/critique of each item
-3. Praise (if earned)
-4. What to do tomorrow
+- For all knowledge/design questions, answer in BOTH English and Japanese.
+- Use English UI names for software (Figma, Adobe, etc.).
+- When praising, do it wholeheartedly, but quickly return to strategy.
+- Emphasize "やらないことを決める勇気" (The courage to decide what NOT to do).
 `,
           },
           ...messages.map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
@@ -177,11 +179,11 @@ Journal structure guidance — when the user shares their day, structure your su
     }
   }, []);
 
-  const stopRecordingAndTranscribe = useCallback(async () => {
+  const stopRecordingAndTranscribe = useCallback(async (): Promise<string> => {
     const rec = recordingRef.current;
     if (!rec) {
       setRecording(false);
-      return;
+      return '';
     }
     setRecording(false);
     recordingRef.current = null;
@@ -190,11 +192,12 @@ Journal structure guidance — when the user shares their day, structure your su
       const uri = rec.getURI();
       if (uri) {
         const text = await transcribeAudio(uri);
-        if (text) setInputText((prev) => (prev ? `${prev} ${text}` : text));
+        return text || '';
       }
     } catch (e) {
       console.warn('Transcribe failed', e);
     }
+    return '';
   }, []);
 
   useEffect(() => {
@@ -202,6 +205,15 @@ Journal structure guidance — when the user shares their day, structure your su
       sendMessage(initialText);
     }
   }, [initialText, messages.length, sendMessage]);
+
+  const handleMicStop = useCallback(async () => {
+    setIsTranscribing(true);
+    const transcribedText = await stopRecordingAndTranscribe();
+    if (transcribedText.trim()) {
+      setInputText(prev => prev ? `${prev} ${transcribedText.trim()}` : transcribedText.trim());
+    }
+    setIsTranscribing(false);
+  }, [stopRecordingAndTranscribe]);
 
   useEffect(() => {
     return () => {
@@ -237,6 +249,7 @@ Based on the conversation provided, generate a JSON object with the following fi
 - today_tasks: Array of strings. Each string is one thing they did today with a short honest evaluation (e.g. ["Supabase\u5b9f\u88c5 \u2014 \u8a2d\u8a08\u304c\u7518\u304b\u3063\u305f\u304c\u7a81\u7834\u529b\u306f\u3042\u3063\u305f"]).
 - tomorrow_tasks: Array of strings. Concrete, prioritized actions for tomorrow based on the conversation (e.g. ["BIS\u30a2\u30d7\u30ea\u306e\u30de\u30fc\u30b1\u30c3\u30c8\u3092A4\u30671\u679a\u306b\u307e\u3068\u3081\u308b"]).
 - mood_color: A hex color code representing the mood (e.g. "#FFD700" for energetic, "#4682B4" for calm, "#FF6B6B" for stressed).
+- mood_score: A number between 0 and 100 representing the mood level (0 for very low/depressed, 50 for neutral, 100 for very high/happy).
 
 Format the response strictly as valid JSON. No markdown.
       `;
@@ -258,7 +271,8 @@ Format the response strictly as valid JSON. No markdown.
           summary: messages.filter(m => m.role === 'user').map(m => m.content).join(' ').substring(0, 200),
           today_tasks: ['- Had a conversation'],
           tomorrow_tasks: [],
-          mood_color: '#BDBDBD'
+          mood_color: '#BDBDBD',
+          mood_score: 50
         };
       }
 
@@ -267,12 +281,14 @@ Format the response strictly as valid JSON. No markdown.
 
       console.log('Upserting to Supabase...', dateKey);
       const { error } = await upsertJournal({
+        id: journalId, // IDがあればそのレコードを更新、なければ新規作成
         date: dateKey,
         text: details.title,
         summary: details.summary,
         today_tasks: details.today_tasks ?? [],
         tomorrow_tasks: details.tomorrow_tasks ?? [],
         mood_color: details.mood_color,
+        mood_score: details.mood_score ?? 50,
         messages: messages as any,
         listener_id: selectedListener,
         listener_name: listener.name,
@@ -324,14 +340,15 @@ Format the response strictly as valid JSON. No markdown.
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="keyboard-chat"
-        keyboardVerticalOffset={insets.top + 60}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <ScrollView
           ref={scrollRef}
           className="scroll-chat"
           contentContainerStyle={{
             paddingTop: 16,
-            paddingBottom: insets.bottom + 100,
+            paddingBottom: 20,
           }}
           onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })}
           showsVerticalScrollIndicator={false}
@@ -339,24 +356,6 @@ Format the response strictly as valid JSON. No markdown.
           <View className="today-section-chat">
             <Text className="today-title-chat">Today</Text>
             <Text className="today-date-chat">{fullDateStr}</Text>
-          </View>
-
-          <View className="voice-section-chat">
-            <Pressable
-              onPressIn={startRecording}
-              onPressOut={stopRecordingAndTranscribe}
-              className="mic-circle-chat"
-              style={{ opacity: recording ? 0.8 : 1 }}
-            >
-              <Ionicons
-                name={recording ? 'mic' : 'mic-outline'}
-                size={56}
-                color="#666"
-              />
-            </Pressable>
-            <Text className="voice-hint-chat">
-              {recording ? 'Recording...' : 'Hold to talk'}
-            </Text>
           </View>
 
           <Text className="listener-label-chat">
@@ -429,32 +428,26 @@ Format the response strictly as valid JSON. No markdown.
         </ScrollView>
 
         <View
-          className="input-bar-chat"
-          style={{ marginBottom: insets.bottom + 8 }}
+          style={{
+            paddingHorizontal: 16,
+            paddingBottom: insets.bottom + 10,
+            backgroundColor: 'transparent',
+          }}
         >
-          <View
-            className="input-bar-avatar-chat"
-            style={{ backgroundColor: listener.color }}
-          >
-            <Ionicons name={listener.icon} size={22} color="#fff" />
-          </View>
-          <TextInput
-            className="input-field-chat"
-            placeholder="Start to talk!"
-            placeholderTextColor="#999"
-            value={inputText}
-            onChangeText={setInputText}
-            multiline
-            maxLength={2000}
-            editable={!loading}
+          <AIChatInput
+            value={inputText} // Added: Pass inputText as value
+            onChangeText={setInputText} // Added: Update inputText on change
+            onSend={(text) => {
+              sendMessage(text);
+              setInputText(''); // Modified: Clear inputText after sending
+              Keyboard.dismiss();
+            }}
+            onMicStart={startRecording}
+            onMicStop={handleMicStop}
+            isRecording={recording}
+            isTranscribing={isTranscribing}
+            listenerColor={listener.color}
           />
-          <Pressable
-            onPress={onSend}
-            disabled={!inputText.trim() || loading}
-            className="send-btn-chat"
-          >
-            <Ionicons name="send" size={20} color="#fff" />
-          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </View>

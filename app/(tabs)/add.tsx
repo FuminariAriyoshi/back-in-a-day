@@ -6,6 +6,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   Text,
   TouchableOpacity,
@@ -24,6 +27,7 @@ export default function AddScreen() {
   const router = useRouter();
   const [selectedListener, setSelectedListener] = useState('maple');
   const [recording, setRecording] = useState(false);
+  const [inputText, setInputText] = useState('');
   const recordingRef = useRef<Audio.Recording | null>(null);
 
   const currentDate = new Date();
@@ -77,15 +81,9 @@ export default function AddScreen() {
   const handleMicStop = useCallback(async () => {
     const transcribedText = await stopRecordingAndTranscribe();
     if (transcribedText.trim()) {
-      router.push({
-        pathname: '/chat',
-        params: {
-          listenerId: selectedListener,
-          initialText: transcribedText.trim(),
-        },
-      });
+      setInputText(prev => prev ? `${prev} ${transcribedText.trim()}` : transcribedText.trim());
     }
-  }, [stopRecordingAndTranscribe, selectedListener, router]);
+  }, [stopRecordingAndTranscribe]);
 
   const handleSend = useCallback((text: string) => {
     router.push({
@@ -106,12 +104,13 @@ export default function AddScreen() {
   }, []);
 
   return (
-    <View className="screen-add">
+    <View className="screen-add" style={{ flex: 1 }}>
       <ScrollView
         className="scroll-add"
+        style={{ flex: 1 }}
         contentContainerStyle={{
           paddingTop: insets.top + 8,
-          paddingBottom: insets.bottom + 160,
+          paddingBottom: 40,
           paddingHorizontal: 20,
           alignItems: 'center',
         }}
@@ -167,23 +166,32 @@ export default function AddScreen() {
         <Text className="prompt-text-add">Start to talk!</Text>
       </ScrollView>
 
-      {/* AI Chat Input Bar */}
-      <View
-        style={{
-          position: 'absolute',
-          left: 16,
-          right: 16,
-          bottom: insets.bottom + 10,
-        }}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <AIChatInput
-          onSend={handleSend}
-          onMicStart={startRecording}
-          onMicStop={handleMicStop}
-          isRecording={recording}
-          listenerColor={selectedListenerData.color}
-        />
-      </View>
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingBottom: insets.bottom + 10,
+            backgroundColor: 'transparent',
+          }}
+        >
+          <AIChatInput
+            value={inputText}
+            onChangeText={setInputText}
+            onSend={() => {
+              handleSend(inputText);
+              setInputText('');
+              Keyboard.dismiss();
+            }}
+            onMicStart={startRecording}
+            onMicStop={handleMicStop}
+            isRecording={recording}
+            listenerColor={selectedListenerData.color}
+          />
+        </View>
+      </KeyboardAvoidingView>
     </View>
   );
 }

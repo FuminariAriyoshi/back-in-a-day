@@ -5,6 +5,7 @@
  */
 
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 function getOpenAIKey(): string {
   const fromEnv = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
@@ -55,14 +56,24 @@ export async function transcribeAudio(uri: string): Promise<string> {
     );
   }
 
-  const ext = uri.includes('.m4a') ? 'm4a' : uri.includes('.caf') ? 'caf' : 'm4a';
-  const mime = ext === 'caf' ? 'audio/x-caf' : 'audio/m4a';
   const formData = new FormData();
-  formData.append('file', {
-    uri,
-    type: mime,
-    name: `recording.${ext}`,
-  } as unknown as Blob);
+  const ext = uri.includes('.m4a') ? 'm4a' : uri.includes('.caf') ? 'caf' : 'm4a';
+  const name = `recording.${ext}`;
+  const type = ext === 'caf' ? 'audio/x-caf' : 'audio/m4a';
+
+  if (Platform.OS === 'web') {
+    const response = await fetch(uri);
+    const blob = await response.blob();
+    formData.append('file', blob, name);
+  } else {
+    // Native (iOS/Android) needs this special object format
+    formData.append('file', {
+      uri,
+      name,
+      type,
+    } as any);
+  }
+
   formData.append('model', 'whisper-1');
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {

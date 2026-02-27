@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -74,8 +74,18 @@ export default function HomeScreen() {
   const selectedDay = week[selectedDayIndex];
   const isSelectedToday = selectedDay?.isToday ?? false;
 
-  const hasJournalForSelected = selectedDay ? !!journalsByDate[selectedDay.dateKey] : false;
-  const selectedEntry = selectedDay ? journalsByDate[selectedDay.dateKey] : null;
+  const journalsForDay = selectedDay ? (journalsByDate[selectedDay.dateKey] || []) : [];
+  const hasJournalForSelected = journalsForDay.length > 0;
+
+  // 選択されたセッションのインデックス
+  const [sessionIndex, setSessionIndex] = useState(0);
+
+  // 日付が変わったときにセッションインデックスをリセット
+  useEffect(() => {
+    setSessionIndex(0);
+  }, [selectedDayIndex]);
+
+  const selectedEntry = journalsForDay[sessionIndex] || journalsForDay[0];
 
   const selectedListenerData = LISTENERS.find((l) => l.id === selectedListener) || LISTENERS[1];
   const headerDateStr = week.length ? `${week[6].monthName} ${week[6].dayNum} ${week[6].date.getFullYear()}` : '';
@@ -138,7 +148,7 @@ export default function HomeScreen() {
               <View
                 className="mood-dot-home"
                 style={{
-                  backgroundColor: journalsByDate[day.dateKey] ? (journalsByDate[day.dateKey].mood_color || '#4CD964') : MOOD_COLORS[index],
+                  backgroundColor: journalsByDate[day.dateKey]?.[0] ? (journalsByDate[day.dateKey][0].mood_color || '#4CD964') : MOOD_COLORS[index],
                   width: selectedDayIndex === index ? 12 : 8,
                   height: selectedDayIndex === index ? 12 : 8,
                   borderRadius: selectedDayIndex === index ? 6 : 4,
@@ -156,6 +166,27 @@ export default function HomeScreen() {
         ) : hasJournalForSelected && selectedEntry ? (
           /* 選択した日にジャーナルがある場合: カード表示 */
           <View className="items-center">
+            {/* 複数セッションがある場合のタブ切替 */}
+            {journalsForDay.length > 1 && (
+              <View style={{ flexDirection: 'row', backgroundColor: 'rgba(0,0,0,0.05)', borderRadius: 20, padding: 4, marginBottom: 16, alignSelf: 'center' }}>
+                {journalsForDay.map((_, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => setSessionIndex(idx)}
+                    style={{
+                      paddingHorizontal: 16,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      backgroundColor: sessionIndex === idx ? '#fff' : 'transparent',
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: sessionIndex === idx ? '#000' : '#888' }}>
+                      Session {journalsForDay.length - idx}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             {/* ジャーナル時のサークル表示 */}
             <View className="empty-placeholder-home">
               <LinearGradient
@@ -248,6 +279,7 @@ export default function HomeScreen() {
                   params: {
                     listenerId: selectedEntry.listener_id,
                     date: selectedEntry.date,
+                    journalId: selectedEntry.id,
                     existingMessages: JSON.stringify(selectedEntry.messages ?? []),
                   }
                 })}
